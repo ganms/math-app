@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Math Practice App</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+        }
+        .question {
+            margin: 20px 0;
+            padding: 10px;
+            background: #f9f9f9;
+            border-left: 4px solid #007BFF;
+        }
+        label {
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        input[type="number"], select {
+            padding: 5px;
+            font-size: 16px;
+            width: 100px;
+        }
+        button {
+            padding: 8px 16px;
+            margin: 5px;
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .feedback {
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        .correct { color: green; }
+        .incorrect { color: red; }
+        .solution {
+            margin-top: 20px;
+            padding: 10px;
+            background: #e9ecef;
+            border-left: 4px solid #28a745;
+            white-space: pre-wrap;
+        }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+    <div class="container" id="app">
+        <div id="start-screen">
+            <h1>Math Practice App</h1>
+            <p>Welcome! Choose the number of questions for your session and click "Start Session" to begin.</p>
+            <label for="num-questions">Number of Questions:</label>
+            <select id="num-questions">
+                <option value="5" selected>5 Questions</option>
+                <option value="10">10 Questions</option>
+            </select>
+            <button id="start-button">Start Session</button>
+        </div>
+        <div id="question-screen" class="hidden">
+            <p id="timer">Time Elapsed: <span id="elapsed-time">00:00:00</span></p>
+            <h1 id="question-header"></h1>
+            <p id="score-display">Score: 0</p>
+            <div id="question-text" class="question"></div>
+            <label for="answer-input">Your Answer:</label>
+            <input type="number" id="answer-input">
+            <div>
+                <button id="submit-button">Submit</button>
+                <button id="show-button">Show Answer</button>
+                <button id="next-button" disabled>Next Question</button>
+            </div>
+            <p id="feedback" class="feedback"></p>
+            <div id="solution" class="solution hidden"></div>
+        </div>
+        <div id="result-screen" class="hidden">
+            <h1>Session Complete!</h1>
+            <p id="final-score"></p>
+            <p id="total-time"></p>
+            <button id="restart-button">Start New Session</button>
+        </div>
+    </div>
+
+    <script>
+        class MathApp {
+            constructor() {
+                this.questions = [];
+                this.currentQuestions = [];
+                this.currentIndex = 0;
+                this.score = 0;
+                this.firstAttempt = true;
+                this.numQuestions = 5;
+                this.startTime = null;
+                this.timerInterval = null;
+
+                // DOM elements
+                this.startScreen = document.getElementById('start-screen');
+                this.questionScreen = document.getElementById('question-screen');
+                this.resultScreen = document.getElementById('result-screen');
+                this.numQuestionsSelect = document.getElementById('num-questions');
+                this.startButton = document.getElementById('start-button');
+                this.questionHeader = document.getElementById('question-header');
+                this.scoreDisplay = document.getElementById('score-display');
+                this.questionText = document.getElementById('question-text');
+                this.answerInput = document.getElementById('answer-input');
+                this.submitButton = document.getElementById('submit-button');
+                this.showButton = document.getElementById('show-button');
+                this.nextButton = document.getElementById('next-button');
+                this.feedback = document.getElementById('feedback');
+                this.solution = document.getElementById('solution');
+                this.elapsedTimeElement = document.getElementById('elapsed-time');
+                this.finalScore = document.getElementById('final-score');
+                this.totalTime = document.getElementById('total-time');
+                this.restartButton = document.getElementById('restart-button');
+
+                this.loadDataset().then(() => {
+                    this.setupEventListeners();
+                });
+            }
+
+            async loadDataset() {
+                try {
+                    const response = await fetch('questions.json');
+                    this.questions = await response.json();
+                } catch (error) {
+                    console.error('Failed to load questions:', error);
+                    alert('Error loading questions. Please ensure questions.json is present.');
+                }
+            }
+
+            extractFinalAnswer(solution) {
+                const match = solution.match(/####\s*(\d+)/);
+                return match ? parseInt(match[1]) : null;
+            }
+
+            setupEventListeners() {
+                this.startButton.addEventListener('click', () => this.startSession());
+                this.submitButton.addEventListener('click', () => this.submitAnswer());
+                this.showButton.addEventListener('click', () => this.showAnswer());
+                this.nextButton.addEventListener('click', () => this.nextQuestion());
+                this.restartButton.addEventListener('click', () => this.restartSession());
+            }
+
+            startSession() {
+                this.numQuestions = parseInt(this.numQuestionsSelect.value);
+                this.currentQuestions = this.shuffle(this.questions).slice(0, this.numQuestions);
+                this.currentIndex = 0;
+                this.score = 0;
+                this.startTime = new Date().getTime();
+                this.startScreen.classList.add('hidden');
+                this.questionScreen.classList.remove('hidden');
+                this.displayQuestion();
+                this.startTimer();
+            }
+
+            displayQuestion() {
+                this.firstAttempt = true;
+                const question = this.currentQuestions[this.currentIndex];
+                this.questionHeader.textContent = `Question ${this.currentIndex + 1} of ${this.numQuestions}`;
+                this.scoreDisplay.textContent = `Score: ${this.score}`;
+                this.questionText.textContent = question.question;
+                this.answerInput.value = '';
+                this.feedback.textContent = '';
+                this.feedback.className = 'feedback';
+                this.solution.textContent = '';
+                this.solution.classList.add('hidden');
+                this.submitButton.disabled = false;
+                this.showButton.disabled = false;
+                this.nextButton.disabled = true;
+            }
+
+            submitAnswer() {
+                const userAnswer = parseInt(this.answerInput.value);
+                if (isNaN(userAnswer)) {
+                    this.feedback.textContent = 'Please enter a valid integer.';
+                    this.feedback.className = 'feedback incorrect';
+                    return;
+                }
+
+                const correctAnswer = this.extractFinalAnswer(this.currentQuestions[this.currentIndex].answer);
+                if (userAnswer === correctAnswer) {
+                    if (this.firstAttempt) this.score++;
+                    this.feedback.textContent = 'Correct!';
+                    this.feedback.className = 'feedback correct';
+                    this.submitButton.disabled = true;
+                    this.showButton.disabled = true;
+                    this.nextButton.disabled = false;
+                } else {
+                    this.feedback.textContent = 'Incorrect, try again.';
+                    this.feedback.className = 'feedback incorrect';
+                    this.firstAttempt = false;
+                }
+            }
+
+            showAnswer() {
+                this.solution.textContent = this.currentQuestions[this.currentIndex].answer;
+                this.solution.classList.remove('hidden');
+                this.firstAttempt = false;
+                this.submitButton.disabled = true;
+                this.showButton.disabled = true;
+                this.nextButton.disabled = false;
+                this.feedback.textContent = 'Solution shown below.';
+                this.feedback.className = 'feedback';
+            }
+
+            nextQuestion() {
+                this.currentIndex++;
+                if (this.currentIndex < this.numQuestions) {
+                    this.displayQuestion();
+                } else {
+                    this.questionScreen.classList.add('hidden');
+                    this.resultScreen.classList.remove('hidden');
+                    this.finalScore.textContent = `Your score: ${this.score} out of ${this.numQuestions}`;
+                    this.totalTime.textContent = `Time Taken: ${this.getFormattedTime()}`;
+                    clearInterval(this.timerInterval);
+                }
+            }
+
+            restartSession() {
+                this.resultScreen.classList.add('hidden');
+                this.startScreen.classList.remove('hidden');
+            }
+
+            startTimer() {
+                this.timerInterval = setInterval(() => {
+                    const elapsed = Math.floor((new Date().getTime() - this.startTime) / 1000);
+                    const hours = Math.floor(elapsed / 3600);
+                    const minutes = Math.floor((elapsed % 3600) / 60);
+                    const seconds = elapsed % 60;
+                    this.elapsedTimeElement.textContent = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+                }, 1000);
+            }
+
+            getFormattedTime() {
+                const elapsed = Math.floor((new Date().getTime() - this.startTime) / 1000);
+                const hours = Math.floor(elapsed / 3600);
+                const minutes = Math.floor((elapsed % 3600) / 60);
+                const seconds = elapsed % 60;
+                return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            }
+
+            shuffle(array) {
+                return array.sort(() => Math.random() - 0.5);
+            }
+        }
+
+        // Initialize the app
+        new MathApp();
+    </script>
+</body>
+</html>

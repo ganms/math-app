@@ -122,7 +122,7 @@
             constructor() {
                 this.questions = [];
                 this.currentQuestions = [];
-                this.sessionReview = []; // New: Store questions and answers for review
+                this.sessionReview = []; // Store questions and answers for review
                 this.currentIndex = 0;
                 this.score = 0;
                 this.firstAttempt = true;
@@ -253,13 +253,17 @@
                 if (this.currentIndex < this.numQuestions) {
                     this.displayQuestion();
                 } else {
-                    this.questionScreen.classList.add('hidden');
-                    this.resultScreen.classList.remove('hidden');
-                    this.finalScore.textContent = `Your score: ${this.score} out of ${this.numQuestions}`;
-                    this.totalTime.textContent = `Time Taken: ${this.getFormattedTime()}`;
-                    this.displayReview();
-                    clearInterval(this.timerInterval);
+                    this.showResults();
                 }
+            }
+
+            showResults() {
+                this.questionScreen.classList.add('hidden');
+                this.resultScreen.classList.remove('hidden');
+                this.finalScore.textContent = `Your score: ${this.score} out of ${this.numQuestions}`;
+                this.totalTime.textContent = `Time Taken: ${this.getFormattedTime()}`;
+                this.displayReview();
+                clearInterval(this.timerInterval);
             }
 
             displayReview() {
